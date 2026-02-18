@@ -35,9 +35,15 @@ RUN pip install torchx gin-config torchmetrics==1.0.3 typing-extensions iopath p
 RUN pip install triton==3.6.0
 
 RUN pip install --no-cache-dir setuptools-git-versioning scikit-build && \
-  git clone --recursive -b v1.2.0 https://github.com/pytorch/FBGEMM.git fbgemm && \
-  cd fbgemm/fbgemm_gpu && \
-  python setup.py install --package_variant=cuda -DTORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 9.0"
+  git config --global http.postBuffer 524288000 && \
+  git clone --depth 1 --recursive -b v1.2.0 https://github.com/pytorch/FBGEMM.git fbgemm
+
+ENV TORCH_CUDA_ARCH_LIST="8.6"
+ENV CMAKE_BUILD_PARALLEL_LEVEL=16
+ENV MAX_JOBS=16
+
+RUN cd fbgemm/fbgemm_gpu && \
+  python setup.py install --package_variant=cuda
 
 RUN pip install --no-deps tensordict orjson && \
   git clone --recursive -b v1.2.0 https://github.com/pytorch/torchrec.git torchrec && \
@@ -60,9 +66,9 @@ WORKDIR /workspace/recsys-examples
 COPY . .
 
 RUN cd /workspace/recsys-examples/corelib/hstu && \
-    HSTU_DISABLE_86OR89=FALSE HSTU_DISABLE_ARBITRARY=TRUE HSTU_DISABLE_LOCAL=TRUE HSTU_DISABLE_RAB=TRUE HSTU_DISABLE_DRAB=TRUE pip install . && \
+    MAX_JOBS=2 NVCC_THREADS=4 HSTU_DISABLE_86OR89=FALSE HSTU_DISABLE_ARBITRARY=TRUE HSTU_DISABLE_LOCAL=TRUE HSTU_DISABLE_RAB=TRUE HSTU_DISABLE_DRAB=TRUE pip install . && \
     cd hopper && \
-    HSTU_DISABLE_ARBITRARY=TRUE HSTU_DISABLE_SM8x=TRUE HSTU_DISABLE_LOCAL=TRUE HSTU_DISABLE_RAB=TRUE HSTU_DISABLE_DELTA_Q=FALSE HSTU_DISABLE_DRAB=TRUE pip install .
+    MAX_JOBS=2 NVCC_THREADS=4 HSTU_DISABLE_ARBITRARY=TRUE HSTU_DISABLE_SM8x=TRUE HSTU_DISABLE_LOCAL=TRUE HSTU_DISABLE_RAB=TRUE HSTU_DISABLE_DELTA_Q=FALSE HSTU_DISABLE_DRAB=TRUE pip install .
 
 RUN rm -rf /workspace/recsys-examples/*
 
@@ -85,4 +91,4 @@ RUN cd /workspace/deps && rm -rf nvcomp && \
     rm  nvcomp-linux-x86_64-5.1.0.21_cuda12-archive.tar.xz 
   
 RUN cd /workspace/recsys-examples/examples/commons && \
-    TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 9.0" python3 setup.py install
+    python3 setup.py install
